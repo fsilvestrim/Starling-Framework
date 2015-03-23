@@ -11,8 +11,10 @@
 package starling.display
 {
     import flash.geom.Matrix;
+    import flash.geom.Matrix3D;
     import flash.geom.Point;
     import flash.geom.Rectangle;
+    import flash.geom.Vector3D;
     import flash.system.Capabilities;
     import flash.utils.getQualifiedClassName;
     
@@ -103,14 +105,18 @@ package starling.display
         /** Adds a child to the container. It will be at the frontmost position. */
         public function addChild(child:DisplayObject):DisplayObject
         {
-            addChildAt(child, numChildren);
+            addChildAt(child, -1);
             return child;
         }
         
-        /** Adds a child to the container at a certain index. */
+        /** Adds a child to the container at a certain index. If you pass a negative index,
+         *  '-1' will add the child at the very end, '-2' at the second to last position, etc. */
         public function addChildAt(child:DisplayObject, index:int):DisplayObject
         {
-            var numChildren:int = mChildren.length; 
+            var numChildren:int = mChildren.length;
+
+            if (index < 0)
+                index = numChildren + 1 + index;
             
             if (index >= 0 && index <= numChildren)
             {
@@ -154,10 +160,16 @@ package starling.display
             return child;
         }
         
-        /** Removes a child at a certain index. Children above the child will move down. If
-         *  requested, the child will be disposed right away. */
+        /** Removes a child at a certain index. The index positions of any display objects above
+         *  the child are decreased by 1. If requested, the child will be disposed right away.
+         *  Pass the index '-1' to remove the last child, '-2' for the second to last, etc. */
         public function removeChildAt(index:int, dispose:Boolean=false):DisplayObject
         {
+            var numChildren:int = mChildren.length;
+
+            if (index < 0)
+                index = numChildren + index;
+
             if (index >= 0 && index < numChildren)
             {
                 var child:DisplayObject = mChildren[index];
@@ -193,10 +205,16 @@ package starling.display
             for (var i:int=beginIndex; i<=endIndex; ++i)
                 removeChildAt(beginIndex, dispose);
         }
-        
-        /** Returns a child object at a certain index. */
+
+        /** Returns a child object at a certain index. If you pass a negative index,
+         *  '-1' will return the last child, '-2' the second to last child, etc. */
         public function getChildAt(index:int):DisplayObject
         {
+            var numChildren:int = mChildren.length;
+
+            if (index < 0)
+                index = numChildren + index;
+
             if (index >= 0 && index < numChildren)
                 return mChildren[index];
             else
@@ -284,7 +302,7 @@ package starling.display
             }
             else if (numChildren == 1)
             {
-                resultRect = mChildren[0].getBounds(targetSpace, resultRect);
+                mChildren[0].getBounds(targetSpace, resultRect);
             }
             else
             {
@@ -294,10 +312,11 @@ package starling.display
                 for (var i:int=0; i<numChildren; ++i)
                 {
                     mChildren[i].getBounds(targetSpace, resultRect);
-                    minX = minX < resultRect.x ? minX : resultRect.x;
-                    maxX = maxX > resultRect.right ? maxX : resultRect.right;
-                    minY = minY < resultRect.y ? minY : resultRect.y;
-                    maxY = maxY > resultRect.bottom ? maxY : resultRect.bottom;
+
+                    if (minX > resultRect.x)      minX = resultRect.x;
+                    if (maxX < resultRect.right)  maxX = resultRect.right;
+                    if (minY > resultRect.y)      minY = resultRect.y;
+                    if (maxY < resultRect.bottom) maxY = resultRect.bottom;
                 }
                 
                 resultRect.setTo(minX, minY, maxX - minX, maxY - minY);
@@ -305,30 +324,32 @@ package starling.display
             
             return resultRect;
         }
-        
+
         /** @inheritDoc */
         public override function hitTest(localPoint:Point, forTouch:Boolean=false):DisplayObject
         {
-            if (forTouch && (!visible || !touchable))
-                return null;
-            
+            if (forTouch && (!visible || !touchable)) return null;
+            if (!hitTestMask(localPoint)) return null;
+
             var target:DisplayObject = null;
             var localX:Number = localPoint.x;
             var localY:Number = localPoint.y;
             var numChildren:int = mChildren.length;
 
-            for (var i:int=numChildren-1; i>=0; --i) // front to back!
+            for (var i:int = numChildren - 1; i >= 0; --i) // front to back!
             {
                 var child:DisplayObject = mChildren[i];
-                getTransformationMatrix(child, sHelperMatrix);
-                
+                if (child.isMask) continue;
+
+                sHelperMatrix.copyFrom(child.transformationMatrix);
+                sHelperMatrix.invert();
+
                 MatrixUtil.transformCoords(sHelperMatrix, localX, localY, sHelperPoint);
                 target = child.hitTest(sHelperPoint, forTouch);
-                
-                if (target)
-                    return forTouch && mTouchGroup ? this : target;
+
+                if (target) return forTouch && mTouchGroup ? this : target;
             }
-            
+
             return null;
         }
         
@@ -346,13 +367,18 @@ package starling.display
                 if (child.hasVisibleArea)
                 {
                     var filter:FragmentFilter = child.filter;
+                    var mask:DisplayObject = child.mask;
 
                     support.pushMatrix();
                     support.transformMatrix(child);
                     support.blendMode = child.blendMode;
-                    
+
+                    if (mask) support.pushMask(mask);
+
                     if (filter) filter.render(child, support, alpha);
                     else        child.render(support, alpha);
+
+                    if (mask) support.popMask();
                     
                     support.blendMode = blendMode;
                     support.popMatrix();

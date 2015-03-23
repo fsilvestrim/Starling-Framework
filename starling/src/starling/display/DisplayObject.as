@@ -17,7 +17,8 @@ package starling.display
     import flash.geom.Rectangle;
     import flash.geom.Vector3D;
     import flash.system.Capabilities;
-    import flash.ui.Mouse;
+import flash.trace.Trace;
+import flash.ui.Mouse;
     import flash.ui.MouseCursor;
     import flash.utils.getQualifiedClassName;
     
@@ -164,7 +165,9 @@ package starling.display
         private static var sHelperMatrix3D:Matrix3D  = new Matrix3D();
         private static var sHelperMatrixAlt3D:Matrix3D  = new Matrix3D();
         
-        /** @private */ 
+        public var hitArea:Vector.<Number> = null;
+
+        /** @private */
         public function DisplayObject()
         {
             if (Capabilities.isDebugger && 
@@ -294,6 +297,10 @@ package starling.display
             // if we've got a mask and the hit occurs outside, fail
             if (mMask && !hitTestMask(localPoint)) return null;
             
+            if(hitArea != null && hitArea.length > 0) {
+                return isInside(hitArea, localPoint) ? this : null;
+            }
+
             // otherwise, check bounding box
             if (getBounds(this, sHelperRect).containsPoint(localPoint)) return this;
             else return null;
@@ -319,6 +326,36 @@ package starling.display
             else return true;
         }
 
+        /**
+         * Based on http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
+         * @param vertices Vector with vertices position x,y on the local space (use the following code to get it from flash)
+         * @param point The local point to be tested against
+         * @return True is is inside, false is is outside... Works for Polygons containing "holes".
+         */
+        [inline]
+        protected function isInside(vertices:Vector.<Number> , point:Point) : Boolean {
+            var l : uint = vertices.length;
+            var r : Boolean = false;
+            var i : uint = 0;
+            var cx : Number = NaN, cy : Number = NaN;
+            var px : Number = vertices[l-2], py : Number = vertices[l-1];
+
+            for (; i < l; i+=2) {
+                if(i >= 2) {
+                    px = cx;
+                    py = cy;
+                }
+
+                cx = vertices[i];
+                cy = vertices[i+1];
+
+                if ( ((cy>point.y) != (py>point.y)) && (point.x < (px-cx) * (point.y-cy) / (py-cy) + cx) )
+                    r = !r;
+            }
+
+            return r;
+        }
+        
         /** Transforms a point from the local coordinate system to global (stage) coordinates.
          *  If you pass a 'resultPoint', the result will be stored in this point instead of 
          *  creating a new object. */

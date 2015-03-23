@@ -24,8 +24,9 @@ package starling.display
     import starling.events.Event;
     import starling.filters.FragmentFilter;
     import starling.utils.MatrixUtil;
-    
-    use namespace starling_internal;
+import starling.utils.VertexData;
+
+use namespace starling_internal;
     
     /**
      *  A DisplayObjectContainer represents a collection of display objects.
@@ -70,7 +71,7 @@ package starling.display
 
         private var mChildren:Vector.<DisplayObject>;
         private var mTouchGroup:Boolean;
-        
+
         /** Helper objects. */
         private static var sHelperMatrix:Matrix = new Matrix();
         private static var sHelperPoint:Point = new Point();
@@ -331,6 +332,10 @@ package starling.display
             if (forTouch && (!visible || !touchable)) return null;
             if (!hitTestMask(localPoint)) return null;
 
+            if(hitArea != null && hitArea.length > 0) {
+                return isInside(hitArea, localPoint) ? this : null;
+            }
+
             var target:DisplayObject = null;
             var localX:Number = localPoint.x;
             var localY:Number = localPoint.y;
@@ -352,7 +357,7 @@ package starling.display
 
             return null;
         }
-        
+
         /** @inheritDoc */
         public override function render(support:RenderSupport, parentAlpha:Number):void
         {

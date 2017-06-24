@@ -100,7 +100,7 @@ package starling.filters
         private var mOffsetY:Number;
         
         private var mVertexData:VertexData;
-        private var mVertexBuffer:VertexBuffer3D;
+        protected var mVertexBuffer:VertexBuffer3D;
         private var mIndexData:Vector.<uint>;
         private var mIndexBuffer:IndexBuffer3D;
         
